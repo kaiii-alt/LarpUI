@@ -1,4 +1,4 @@
-loadstring(httpget("https://raw.githubusercontent.com/YOUR_USER/larp/main/larp.lua"))()
+loadstring(httpget("https://raw.githubusercontent.com/kaiii-alt/larp/main/larp.lua"))()
 
 local library = _G.Larp
 local larp = library.new("Larp", 5013109572)
