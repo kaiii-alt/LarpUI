@@ -36,6 +36,7 @@ local Clip1 = nil
 local Current = nil
 local Conn = nil
 local Blocked = false
+local Debug = false
 
 local function mix(a, b, t)
     return Color3.new(a.R + (b.R - a.R) * t, a.G + (b.G - a.G) * t, a.B + (b.B - a.B) * t)
@@ -57,7 +58,7 @@ end
 local function call(fn, ...)
     if fn then
         local ok, err = pcall(fn, ...)
-        if not ok then warn(tostring(err)) end
+        if not ok and Debug then warn(tostring(err)) end
     end
 end
 
@@ -1495,7 +1496,7 @@ function Library.new(title, icon)
             pcall(sweep)
             if tostring(err) ~= LastErr then
                 LastErr = tostring(err)
-                warn(LastErr)
+                if Debug then warn(LastErr) end
             end
         end
     end)
@@ -1575,6 +1576,10 @@ function Library:Notify(title, context, callback)
     while #Notes > 6 do
         table.remove(Notes, 1)
     end
+end
+
+function Library:setDebug(on)
+    Debug = on == true
 end
 
 function Library:Destroy()
