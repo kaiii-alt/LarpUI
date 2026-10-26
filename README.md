@@ -15,7 +15,7 @@ A UI library for Matcha, drawn entirely with the Drawing API. Pages, sections, t
 ## Load
 
 ```lua
-loadstring(httpget("https://raw.githubusercontent.com/YOUR_USER/larp/main/larp.lua"))()
+loadstring(httpget("https://raw.githubusercontent.com/kaiii-alt/LarpUI/refs/heads/main/larp.lua"))()
 
 local library = _G.Larp
 local larp = library.new("Larp")
@@ -26,7 +26,7 @@ Matcha drops the return value of `loadstring`, so the library is exposed as `_G.
 ## Example
 
 ```lua
-loadstring(httpget("https://raw.githubusercontent.com/YOUR_USER/larp/main/larp.lua"))()
+loadstring(httpget("https://raw.githubusercontent.com/kaiii-alt/LarpUI/refs/heads/main/larp.lua"))()
 
 local larp = _G.Larp.new("Larp")
 
