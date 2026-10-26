@@ -147,5 +147,3 @@ Pass `nil` for anything you do not want to change.
 ## Notes
 
 - Scrolling uses the scrollbar, or Up and Down while the mouse is over the page. There is no mouse wheel input in Matcha.
-- Text uses the System font.
-- Page icons and the first load of an icon need internet access.
