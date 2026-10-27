@@ -3,6 +3,17 @@ loadstring(httpget("https://raw.githubusercontent.com/kaiii-alt/LarpUI/refs/head
 local library = _G.Larp
 local larp = library.new("Larp", 5013109572)
 
+local ADD_IMAGES_HERE = {
+    [==[PASTE_BASE64_FOR_image1]==],
+    [==[PASTE_BASE64_FOR_image2]==],
+}
+
+for _, data in ipairs(ADD_IMAGES_HERE) do
+    if string.sub(data, 1, 5) ~= "PASTE" then
+        larp:addImage(data)
+    end
+end
+
 local themes = {
     Background = Color3.fromRGB(24, 24, 24),
     Glow = Color3.fromRGB(0, 0, 0),
