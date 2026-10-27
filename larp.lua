@@ -29,6 +29,7 @@ local FrameDown = {}
 local Hold = {}
 local Depth = 0
 local Alpha = 1
+local PanelA = 1
 local Icons = {}
 local FrameNo = 0
 local Clip0 = nil
@@ -356,7 +357,7 @@ end
 local function rowBg(x, y, w, h, hot, boost, pad)
     local i = pad or 0
 
-    rect(x + i, y + i, w - 2 * i, h - 2 * i, mix(Theme.DarkContrast, Theme.TextColor, (hot and 0.04 or 0) + (boost or 0)), 2)
+    rect(x + i, y + i, w - 2 * i, h - 2 * i, mix(Theme.DarkContrast, Theme.TextColor, (hot and 0.04 or 0) + (boost or 0)), 2, PanelA)
 end
 
 local function hsv(h, s, v)
@@ -794,6 +795,8 @@ local function applyActive()
     elseif a.kind == "resize" then
         Current.w = clamp(a.w0 + Input.x - a.mx, 400, 1000)
         Current.h = clamp(a.h0 + Input.y - a.my, 300, 800)
+    elseif a.kind == "bgop" then
+        Current.bgOp = math.floor(clamp((Input.x - a.x) / a.w, 0, 1) * 100 + 0.5)
     elseif a.kind == "sv" then
         a.p.sat = clamp((Input.x - a.x) / a.w, 0, 1)
         a.p.val = 1 - clamp((Input.y - a.y) / a.h, 0, 1)
@@ -1022,6 +1025,108 @@ local function drawPicker(dt)
     text("Submit", x + 8 + (146 - tw("Submit", 11)) / 2, ty(y + 140, 20, 11), T.TextColor, 11)
 end
 
+local function panelRows(lib)
+    local n = #lib.images
+    if n == 0 then return 0 end
+    return math.min(4, math.ceil((n + 1) / 2))
+end
+
+local function togglePanel()
+    local p = State.panel
+    if p and p.open then
+        p.open = false
+    else
+        State.panel = { open = true, anim = 0, off = 0, x = 0, y = 0, h = 100 }
+    end
+end
+
+local function updatePanel(lib, dt)
+    local p = State.panel
+    if not p then return end
+    p.anim = approach(p.anim, p.open and 1 or 0, dt / 0.2)
+    if not p.open and p.anim <= 0 then
+        State.panel = nil
+        return
+    end
+    local vp = Cam.ViewportSize
+    local rows = panelRows(lib)
+    p.h = rows == 0 and 100 or 86 + rows * 26
+    local px = lib.x + lib.w + 10
+    if px + 162 > vp.X then px = lib.x - 172 end
+    p.x = clamp(px, 0, vp.X - 162)
+    p.y = clamp(lib.y, 0, vp.Y - p.h)
+    if not p.open or p.anim < 0.98 then return end
+    local x, y = p.x, p.y
+    if not inside(x, y, 162, p.h) then return end
+    State.dropNow = true
+    local total = math.ceil((#lib.images + 1) / 2)
+    if edge(0x28) then p.off = p.off + 1 elseif edge(0x26) then p.off = p.off - 1 end
+    p.off = clamp(p.off, 0, math.max(0, total - rows))
+    if not Input.click then return end
+    Input.click = false
+    if State.focus then commit(State.focus) end
+    if inside(x + 162 - 26, y + 6, 20, 20) then
+        p.open = false
+        return
+    end
+    if rows == 0 then return end
+    for r = 0, rows - 1 do
+        for c = 0, 1 do
+            local e = (p.off + r) * 2 + c + 1
+            if e <= #lib.images + 1 and inside(x + 8 + c * 76, y + 32 + r * 26, 70, 22) then
+                if e == 1 then lib:setBackground(nil) else lib:setBackground(e - 1) end
+            end
+        end
+    end
+    local sy = y + 32 + rows * 26 + 6
+    if inside(x + 2, sy + 18, 158, 22) then
+        State.active = { kind = "bgop", x = x + 8, w = 146 }
+    end
+end
+
+local function drawPanel(lib)
+    local p = State.panel
+    if not p then return end
+    local T = Theme
+    local e = ease(p.anim)
+    local x, y = p.x, p.y
+    local w, h = 162 * e, p.h * e
+    for i = 1, 8 do
+        rect(x - i, y - i, w + 2 * i, h + 2 * i, T.Glow, 4 + i, 0.022 * e)
+    end
+    rect(x, y, w, h, T.Background, 4)
+    if p.anim < 0.98 then return end
+    text("feet panel", x + 10, y + 9, T.TextColor, 14, 1, true)
+    text("x", x + 162 - 22, y + 8, T.TextColor, 14, inside(x + 162 - 26, y + 6, 20, 20) and 1 or 0.6)
+    local rows = panelRows(lib)
+    if rows == 0 then
+        text("no images added", x + 10, y + 40, dim(), 12)
+        text("paste Base64 into", x + 10, y + 56, dim(), 12)
+        text("ADD_IMAGES_HERE", x + 10, y + 70, dim(), 12)
+        return
+    end
+    for r = 0, rows - 1 do
+        for c = 0, 1 do
+            local k = (p.off + r) * 2 + c + 1
+            if k <= #lib.images + 1 then
+                local name = k == 1 and "off" or lib.images[k - 1].name
+                local bx, by = x + 8 + c * 76, y + 32 + r * 26
+                local sel = (k == 1 and not lib.bg) or (k > 1 and lib.bg == k - 1)
+                local hot = inside(bx, by, 70, 22)
+                rect(bx, by, 70, 22, mix(T.DarkContrast, T.TextColor, sel and 0.14 or (hot and 0.08 or 0)), 2)
+                text(name, bx + (70 - tw(name, 12)) / 2, ty(by, 22, 12), T.TextColor, 12, sel and 1 or 0.7)
+            end
+        end
+    end
+    local sy = y + 32 + rows * 26 + 6
+    local v = tostring(lib.bgOp)
+    text("Opacity", x + 10, sy + 2, T.TextColor, 12)
+    text(v, x + 152 - tw(v, 12), sy + 2, T.TextColor, 12, 1, true)
+    rect(x + 8, sy + 26, 146, 4, T.LightContrast, 2)
+    rect(x + 8, sy + 26, 146 * lib.bgOp / 100, 4, T.TextColor, 2)
+    circle(x + 8 + 146 * lib.bgOp / 100, sy + 28, 5, T.TextColor)
+end
+
 local function drawWindow(lib, dt)
     local T = Theme
     local a = lib.anim
@@ -1055,6 +1160,24 @@ local function drawWindow(lib, dt)
         rect(x - i, top - i, W + 2 * i, Hc + 2 * i, T.Glow, 4 + i, 0.016)
     end
     rect(x, top, W, Hc, T.Background, 4)
+    local bgi = lib.bg and lib.images[lib.bg]
+    PanelA = 1
+    if bgi and bgi.bytes then
+        if not bgi.icon then
+            bgi.icon = Drawing.new("Image")
+            bgi.icon.Data = bgi.bytes
+            Icons[#Icons + 1] = bgi
+        end
+        Depth = Depth + 1
+        bgi.icon.Size = Vector2.new(W, Hc)
+        bgi.icon.Position = Vector2.new(x, top)
+        bgi.icon.Transparency = lib.bgOp / 100
+        bgi.icon.Rounding = 4
+        bgi.icon.ZIndex = Depth
+        bgi.icon.Visible = true
+        bgi.iconSeen = FrameNo
+        PanelA = 1 - 0.5 * lib.bgOp / 100
+    end
     local gx = x + W - 14
     local gy = y + H - 14
 
@@ -1062,11 +1185,15 @@ local function drawWindow(lib, dt)
         if Input.click and not State.active and inside(gx, gy, 14, 14) then
             State.active = { kind = "resize", mx = Input.x, my = Input.y, w0 = W, h0 = H }
         end
+        if Input.click and not State.active and inside(x, y + H - 16, 16, 16) then
+            Input.click = false
+            togglePanel()
+        end
         if Input.click and not State.active and inside(x, y, W, 38) then
             lib.drag = {x = Input.x - x, y = Input.y - y}
         end
-        rect(x, y + 38, 126, H - 42, T.DarkContrast, 0)
-        rect(x, y + H - 20, 126, 20, T.DarkContrast, 4)
+        rect(x, y + 38, 126, H - 42, T.DarkContrast, 0, PanelA)
+        rect(x, y + H - 20, 126, 20, T.DarkContrast, 4, PanelA)
 
         for i, page in ipairs(lib.pages) do
             local by = y + 48 + (i - 1) * 36
@@ -1150,7 +1277,7 @@ local function drawWindow(lib, dt)
                 end
                 Alpha = k
                 local sy = cursor + lift
-                rect(cx, sy, cw, sh, T.LightContrast, 4)
+                rect(cx, sy, cw, sh, T.LightContrast, 4, PanelA)
                 text(section.title, cx + 8, sy + 12, T.TextColor, 12, 1, true)
                 local iy = sy + 32
 
@@ -1181,6 +1308,7 @@ local function drawWindow(lib, dt)
         rect(x + W - 11, y + H - 6, 2, 2, T.TextColor, 1, on and 0.9 or 0.35)
         rect(x + W - 6, y + H - 11, 2, 2, T.TextColor, 1, on and 0.9 or 0.35)
     end
+    PanelA = 1
     Input.click = saved
 end
 
@@ -1330,6 +1458,11 @@ local function blocking(lib)
         return true
     end
 
+    local q = State.panel
+    if q and mx >= q.x - 6 and mx <= q.x + 168 and my >= q.y - 6 and my <= q.y + q.h + 6 then
+        return true
+    end
+
     for _, n in ipairs(Notes) do
         if mx >= n.bx and mx <= n.bx + n.bw and my >= n.y and my <= n.y + n.h then return true end
     end
@@ -1354,9 +1487,11 @@ local function frame(dt)
     applyActive()
     updateNotes(dt)
     updatePicker(dt)
+    updatePanel(lib, dt)
     lib.anim = approach(lib.anim, lib.open and 1 or 0, dt / 0.4)
     if not lib.open then
         closePicker(false)
+        if State.panel then State.panel.open = false end
         if State.focus then
             commit(State.focus)
         end
@@ -1372,6 +1507,7 @@ local function frame(dt)
     if lib.anim > 0 then drawWindow(lib, dt) end
     if Input.click and State.focus and not State.focusHit then commit(State.focus) end
     drawPicker(dt)
+    drawPanel(lib)
     drawNotes()
     local want = blocking(lib)
 
@@ -1414,6 +1550,7 @@ local function cleanup()
     Notes = {}
     Current = nil
     State.picker = nil
+    State.panel = nil
     State.active = nil
     State.focus = nil
     State.listen = nil
@@ -1435,34 +1572,52 @@ local function isPng(bytes)
     return (a == 137 and b == 80) or (a == 255 and b == 216)
 end
 
-local IconUrls = {
-    "https://thumbnails.roblox.com/v1/assets?assetIds=%s&returnPolicy=PlaceHolder&size=110x110&format=Png&isCircular=false",
-    "https://thumbnails.roproxy.com/v1/assets?assetIds=%s&returnPolicy=PlaceHolder&size=110x110&format=Png&isCircular=false",
+local AssetUrls = {
+    "https://thumbnails.roblox.com/v1/assets?assetIds=%s&returnPolicy=PlaceHolder&size=%s&format=Png&isCircular=false",
+    "https://thumbnails.roproxy.com/v1/assets?assetIds=%s&returnPolicy=PlaceHolder&size=%s&format=Png&isCircular=false",
 }
 
-local function fetchIcon(id)
-    local name = "larp_icon_" .. id .. ".dat"
+local function fetchAsset(id, size, tag)
+    local name = "larp_" .. tag .. "_" .. id .. ".dat"
     if isfile(name) then
         local cached = readfile(name)
         if isPng(cached) then return cached end
     end
     for _ = 1, 3 do
-        for _, pattern in ipairs(IconUrls) do
-            local reply = httpget(string.format(pattern, id))
+        for _, pattern in ipairs(AssetUrls) do
+            local reply = httpget(string.format(pattern, id, size))
             local url = string.match(reply, '"imageUrl":"([^"]+)"')
             if url then
                 local bytes = httpget((string.gsub(url, "\\/", "/")))
                 if isPng(bytes) then
                     writefile(name, bytes)
-
                     return bytes
                 end
             end
         end
         task.wait(0.7)
     end
-
     return nil
+end
+
+local function fetchIcon(id)
+    return fetchAsset(id, "110x110", "icon")
+end
+
+local function fetchImage(id)
+    return fetchAsset(id, "420x420", "img")
+end
+
+local function decodeImage(src)
+    src = string.gsub(src, "^data:image/%w+;base64,", "")
+    src = string.gsub(src, "%s", "")
+    local bytes = base64decode(src)
+    if isPng(bytes) then return bytes end
+    return nil
+end
+
+local function isAssetId(src)
+    return string.match(src, "^%d+$") ~= nil and #src < 20
 end
 
 local LastErr = nil
@@ -1489,6 +1644,8 @@ function Library.new(title, icon)
     lib.open = true
     lib.anim = 1
     lib.fade = 1
+    lib.images = {}
+    lib.bgOp = 35
     Current = lib
     Conn = RunService.RenderStepped:Connect(function(dt)
         local ok, err = pcall(frame, dt)
@@ -1511,20 +1668,20 @@ function Library:addPage(title, icon)
     page.sections = {}
     page.scroll = 0
     page.contentH = 0
-
     if icon ~= nil and tostring(icon) ~= "" then
-        page.iconId = tostring(icon)
-        task.spawn(function()
-            local ok, bytes = pcall(fetchIcon, page.iconId)
-            if ok and bytes then
-                page.iconBytes = bytes
-            else
-                page.iconFailed = true
-            end
-        end)
+        local src = tostring(icon)
+        page.iconId = src
+        if isAssetId(src) then
+            task.spawn(function()
+                local ok, bytes = pcall(fetchIcon, src)
+                if ok and bytes then page.iconBytes = bytes else page.iconFailed = true end
+            end)
+        else
+            local ok, bytes = pcall(decodeImage, src)
+            if ok and bytes then page.iconBytes = bytes else page.iconFailed = true end
+        end
     end
     table.insert(self.pages, page)
-
     if not self.page then self.page = page end
     return page
 end
@@ -1580,6 +1737,42 @@ end
 
 function Library:setDebug(on)
     Debug = on == true
+end
+
+function Library:addImage(source)
+    local n = #self.images + 1
+    local im = { name = "image" .. n }
+    local src = tostring(source)
+    self.images[n] = im
+    if isAssetId(src) then
+        task.spawn(function()
+            local ok, bytes = pcall(fetchImage, src)
+            if ok and bytes then im.bytes = bytes else im.failed = true end
+        end)
+    else
+        local ok, bytes = pcall(decodeImage, src)
+        if ok and bytes then im.bytes = bytes else im.failed = true end
+    end
+    return n
+end
+
+function Library:setBackground(which)
+    if which == nil or which == false or which == "off" then
+        self.bg = nil
+        self.bgOff = true
+        return
+    end
+    for i, im in ipairs(self.images) do
+        if i == which or im.name == which then
+            self.bg = i
+            self.bgOff = false
+            return
+        end
+    end
+end
+
+function Library:setBackgroundOpacity(v)
+    self.bgOp = clamp(math.floor(tonumber(v) or 35), 0, 100)
 end
 
 function Library:Destroy()
