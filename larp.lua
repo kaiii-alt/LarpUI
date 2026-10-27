@@ -1062,7 +1062,7 @@ local function updatePanel(lib, dt)
     end
     local vp = Cam.ViewportSize
     local rows = panelRows(lib)
-    p.h = rows == 0 and 100 or 216 + rows * 26
+    p.h = rows == 0 and 116 or 232 + rows * 26
     local px = lib.x + lib.w + 10
     if px + 162 > vp.X then px = lib.x - 172 end
     p.x = clamp(px, 0, vp.X - 162)
@@ -1125,6 +1125,7 @@ local function drawPanel(lib)
     if p.anim < 0.98 then return end
     text("feet panel", x + 10, y + 9, T.TextColor, 14, 1, true)
     text("x", x + 162 - 22, y + 8, T.TextColor, 14, inside(x + 162 - 26, y + 6, 20, 20) and 1 or 0.6)
+    text("req by matts9545", x + (162 - tw("req by matts9545", 10)) / 2, y + p.h - 18, dim(), 10)
     local rows = panelRows(lib)
     if rows == 0 then
         text("no images added", x + 10, y + 40, dim(), 12)
