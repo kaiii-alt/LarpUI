@@ -11,6 +11,7 @@ A UI library for Matcha, drawn entirely with the Drawing API. Pages, sections, t
 - Resizable from the bottom right corner, draggable from the title bar
 - Only blocks game clicks while your mouse is over the menu
 - Page icons from Roblox asset ids
+- Optional image background with an opacity control
 
 ## Load
 
@@ -34,11 +35,11 @@ local page = larp:addPage("Main", 5012544693)
 local section = page:addSection("Section")
 
 section:addToggle("Toggle", false, function(value)
-    print(value)
+    larp:Notify("Value", tostring(value))
 end)
 
 section:addSlider("Speed", 16, 0, 100, function(value)
-    print(value)
+    larp:Notify("Value", tostring(value))
 end)
 
 section:addKeybind("Menu Key", Enum.KeyCode.RightControl, function()
@@ -48,6 +49,62 @@ end)
 
 A full demo is in `example.lua`.
 
+## Images
+
+Larp can show an image behind the window. Put the picture inside your script as Base64 text, so there is nothing to download or place by hand.
+
+```lua
+larp:addImage("iVBORw0KGgoAAAANSUhEUg...")
+larp:addImage("iVBORw0KGgoAAAANSUhEUg...")
+```
+
+Images are named `image1`, `image2` and so on in the order you add them. The background is off by default, so nothing shows until you pick an image.
+
+To get the Base64 text of a PNG, run this in PowerShell. It shrinks the picture to 320 by 268 and copies the text to your clipboard:
+
+```
+Add-Type -AssemblyName System.Drawing
+$src = [System.Drawing.Image]::FromFile("C:\path\to\image1.png")
+$bmp = New-Object System.Drawing.Bitmap 320, 268
+$g = [System.Drawing.Graphics]::FromImage($bmp)
+$g.DrawImage($src, 0, 0, 320, 268)
+$ms = New-Object System.IO.MemoryStream
+$bmp.Save($ms, [System.Drawing.Imaging.ImageFormat]::Png)
+[Convert]::ToBase64String($ms.ToArray()) | Set-Clipboard
+```
+
+Paste the result between the square brackets in `[==[ ]==]`. Pasted text can have line breaks in it.
+
+Base64 makes a file about a third bigger, so a 225 KB picture becomes about 300,000 characters. The window is only about 500 pixels wide and the picture sits faintly behind it, so a small picture looks the same and keeps your script small. The picture is stretched to fit the window.
+
+You can also pass a Roblox asset id, such as `larp:addImage(1234567890)`. It is downloaded once and saved in your workspace folder.
+
+### Make an image the default
+
+Call `setBackground` after adding your images. Use the number or the name of the image you want, and set the opacity if you like:
+
+```lua
+larp:addImage("...")
+larp:addImage("...")
+
+larp:setBackground(2)
+larp:setBackgroundOpacity(50)
+```
+
+`larp:setBackground("image2")` does the same thing. Without a `setBackground` call the background stays off.
+
+### library:addImage(source)
+
+Adds an image from Base64 text or an asset id and returns its number.
+
+### library:setBackground(which)
+
+Picks the background by number or name, such as `2` or `"image2"`. Pass `nil` or `"off"` to turn it off.
+
+### library:setBackgroundOpacity(percent)
+
+Sets how strong the image is, from 0 to 100.
+
 ## Library
 
 ### library.new(title)
@@ -56,7 +113,7 @@ Creates the window and returns the library object. Calling it again removes the 
 
 ### library:addPage(title, icon)
 
-Adds a page. `icon` is an optional Roblox asset id. It is downloaded once and cached as `larp_icon_<id>.dat`. If it fails to load, the page shows only its name.
+Adds a page. `icon` is optional and can be a Base64 PNG or a Roblox asset id. Asset ids are downloaded once and cached as `larp_icon_<id>.dat`. If an icon fails to load, the page shows only its name.
 
 Returns a page.
 
@@ -75,6 +132,10 @@ Shows a notification at the bottom left. Without a callback it closes after 5 se
 ### library:SelectPage(page)
 
 Opens a page. Accepts a page object or its index in `library.pages`.
+
+### library:setDebug(state)
+
+Turns error messages in the console on or off. They are off by default.
 
 ### library:Destroy()
 
