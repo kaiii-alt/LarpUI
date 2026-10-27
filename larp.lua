@@ -2,6 +2,8 @@ if _G.LarpCleanup then
     pcall(_G.LarpCleanup)
 end
 
+pcall(setrobloxinput, true)
+
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local Cam = workspace.CurrentCamera
@@ -55,6 +57,8 @@ local function approach(a, b, step)
     if a < b then return math.min(a + step, b) end
     return math.max(a - step, b)
 end
+
+local Tag = "made by kai (@l4z6 on discord)"
 
 local function call(fn, ...)
     if fn then
@@ -798,6 +802,8 @@ local function applyActive()
     elseif a.kind == "bgop" then
         local v = math.floor(clamp((Input.x - a.x) / a.w, 0, 1) * 100 + 0.5)
         if Current.corner then Current.cornerOp = v else Current.bgOp = v end
+    elseif a.kind == "csize" then
+        Current.cSize = 60 + math.floor(clamp((Input.x - a.x) / a.w, 0, 1) * 540 + 0.5)
     elseif a.kind == "rint" then
         Current.rInt = 1 + math.floor(clamp((Input.x - a.x) / a.w, 0, 1) * 59 + 0.5)
     elseif a.kind == "corner" then
@@ -1056,7 +1062,7 @@ local function updatePanel(lib, dt)
     end
     local vp = Cam.ViewportSize
     local rows = panelRows(lib)
-    p.h = rows == 0 and 100 or 176 + rows * 26
+    p.h = rows == 0 and 100 or 216 + rows * 26
     local px = lib.x + lib.w + 10
     if px + 162 > vp.X then px = lib.x - 172 end
     p.x = clamp(px, 0, vp.X - 162)
@@ -1088,6 +1094,7 @@ local function updatePanel(lib, dt)
     local ry = s1 + 40
     local s2 = ry + 26
     local cy = s2 + 40
+    local s3 = cy + 26
     if inside(x + 2, s1 + 18, 158, 22) then
         State.active = { kind = "bgop", x = x + 8, w = 146 }
     elseif inside(x + 8, ry, 72, 22) then
@@ -1099,6 +1106,8 @@ local function updatePanel(lib, dt)
         State.active = { kind = "rint", x = x + 8, w = 146 }
     elseif inside(x + 8, cy, 146, 22) then
         lib.corner = not lib.corner
+    elseif inside(x + 2, s3 + 18, 158, 22) then
+        State.active = { kind = "csize", x = x + 8, w = 146 }
     end
 end
 
@@ -1140,6 +1149,7 @@ local function drawPanel(lib)
     local ry = s1 + 40
     local s2 = ry + 26
     local cy = s2 + 40
+    local s3 = cy + 26
     local op = lib.corner and lib.cornerOp or lib.bgOp
     local v = tostring(op)
     text("Opacity", x + 10, s1 + 2, T.TextColor, 12)
@@ -1164,6 +1174,13 @@ local function drawPanel(lib)
     rect(x + 8, s2 + 26, 146 * f, 4, T.TextColor, 2)
     circle(x + 8 + 146 * f, s2 + 28, 5, T.TextColor)
     box(x + 8, cy, lib.corner, "goon corner mode", inside(x + 8, cy, 146, 22))
+    local sz = tostring(lib.cSize)
+    local sf = (lib.cSize - 60) / 540
+    text("Size", x + 10, s3 + 2, T.TextColor, 12)
+    text(sz, x + 152 - tw(sz, 12), s3 + 2, T.TextColor, 12, 1, true)
+    rect(x + 8, s3 + 26, 146, 4, T.LightContrast, 2)
+    rect(x + 8, s3 + 26, 146 * sf, 4, T.TextColor, 2)
+    circle(x + 8 + 146 * sf, s3 + 28, 5, T.TextColor)
 end
 
 local function drawWindow(lib, dt)
@@ -1492,7 +1509,7 @@ local function cornerRect(lib)
     local im = lib.bg and lib.images[lib.bg]
     if not (lib.corner and im and im.bytes) then return nil end
     if not im.w then im.w, im.h = imageSize(im.bytes) end
-    local s = 260 / math.max(im.w, im.h, 1)
+    local s = lib.cSize / math.max(im.w, im.h, 1)
     local w, h = math.max(20, im.w * s), math.max(20, im.h * s)
     local vp = Cam.ViewportSize
     if not lib.cx then
@@ -1615,17 +1632,25 @@ local function frame(dt)
         lib.drag = nil
     end
     runKeybinds(lib)
+    if not Current then
+        pcall(_G.LarpCleanup)
+        return
+    end
     if State.listen then captureKey() end
     if State.focus then
         typing(State.focus)
     end
     drawCorner(lib)
     if lib.anim > 0 then drawWindow(lib, dt) end
+    if not Current then
+        pcall(_G.LarpCleanup)
+        return
+    end
     if Input.click and State.focus and not State.focusHit then commit(State.focus) end
     drawPicker(dt)
     drawPanel(lib)
     drawNotes()
-    local want = blocking(lib)
+    local want = blocking(lib) and isrbxactive()
 
     if want ~= Blocked then
         Blocked = want
@@ -1671,10 +1696,8 @@ local function cleanup()
     State.focus = nil
     State.listen = nil
     Depth = 0
-    if Blocked then
-        Blocked = false
-        pcall(setrobloxinput, true)
-    end
+    Blocked = false
+    pcall(setrobloxinput, true)
 end
 
 _G.LarpCleanup = cleanup
@@ -1763,6 +1786,7 @@ function Library.new(title, icon)
     lib.images = {}
     lib.bgOp = 35
     lib.cornerOp = 100
+    lib.cSize = 260
     lib.rInt = 10
     lib.rTimer = 0
     lib.rand = false
@@ -2069,5 +2093,7 @@ function Section:updateDropdown(dropdown, title, list, callback)
 
     return it
 end
+
+Library.credits = Tag
 
 _G.Larp = Library
