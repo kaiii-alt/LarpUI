@@ -796,7 +796,13 @@ local function applyActive()
         Current.w = clamp(a.w0 + Input.x - a.mx, 400, 1000)
         Current.h = clamp(a.h0 + Input.y - a.my, 300, 800)
     elseif a.kind == "bgop" then
-        Current.bgOp = math.floor(clamp((Input.x - a.x) / a.w, 0, 1) * 100 + 0.5)
+        local v = math.floor(clamp((Input.x - a.x) / a.w, 0, 1) * 100 + 0.5)
+        if Current.corner then Current.cornerOp = v else Current.bgOp = v end
+    elseif a.kind == "rint" then
+        Current.rInt = 1 + math.floor(clamp((Input.x - a.x) / a.w, 0, 1) * 59 + 0.5)
+    elseif a.kind == "corner" then
+        Current.cx = Input.x - a.dx
+        Current.cy = Input.y - a.dy
     elseif a.kind == "sv" then
         a.p.sat = clamp((Input.x - a.x) / a.w, 0, 1)
         a.p.val = 1 - clamp((Input.y - a.y) / a.h, 0, 1)
@@ -1050,7 +1056,7 @@ local function updatePanel(lib, dt)
     end
     local vp = Cam.ViewportSize
     local rows = panelRows(lib)
-    p.h = rows == 0 and 100 or 86 + rows * 26
+    p.h = rows == 0 and 100 or 176 + rows * 26
     local px = lib.x + lib.w + 10
     if px + 162 > vp.X then px = lib.x - 172 end
     p.x = clamp(px, 0, vp.X - 162)
@@ -1078,9 +1084,21 @@ local function updatePanel(lib, dt)
             end
         end
     end
-    local sy = y + 32 + rows * 26 + 6
-    if inside(x + 2, sy + 18, 158, 22) then
+    local s1 = y + 32 + rows * 26 + 6
+    local ry = s1 + 40
+    local s2 = ry + 26
+    local cy = s2 + 40
+    if inside(x + 2, s1 + 18, 158, 22) then
         State.active = { kind = "bgop", x = x + 8, w = 146 }
+    elseif inside(x + 8, ry, 72, 22) then
+        lib.rand = not lib.rand
+        lib.rTimer = 0
+    elseif inside(x + 84, ry, 70, 22) then
+        lib:randomize()
+    elseif inside(x + 2, s2 + 18, 158, 22) then
+        State.active = { kind = "rint", x = x + 8, w = 146 }
+    elseif inside(x + 8, cy, 146, 22) then
+        lib.corner = not lib.corner
     end
 end
 
@@ -1118,13 +1136,34 @@ local function drawPanel(lib)
             end
         end
     end
-    local sy = y + 32 + rows * 26 + 6
-    local v = tostring(lib.bgOp)
-    text("Opacity", x + 10, sy + 2, T.TextColor, 12)
-    text(v, x + 152 - tw(v, 12), sy + 2, T.TextColor, 12, 1, true)
-    rect(x + 8, sy + 26, 146, 4, T.LightContrast, 2)
-    rect(x + 8, sy + 26, 146 * lib.bgOp / 100, 4, T.TextColor, 2)
-    circle(x + 8 + 146 * lib.bgOp / 100, sy + 28, 5, T.TextColor)
+    local s1 = y + 32 + rows * 26 + 6
+    local ry = s1 + 40
+    local s2 = ry + 26
+    local cy = s2 + 40
+    local op = lib.corner and lib.cornerOp or lib.bgOp
+    local v = tostring(op)
+    text("Opacity", x + 10, s1 + 2, T.TextColor, 12)
+    text(v, x + 152 - tw(v, 12), s1 + 2, T.TextColor, 12, 1, true)
+    rect(x + 8, s1 + 26, 146, 4, T.LightContrast, 2)
+    rect(x + 8, s1 + 26, 146 * op / 100, 4, T.TextColor, 2)
+    circle(x + 8 + 146 * op / 100, s1 + 28, 5, T.TextColor)
+    local function box(bx, by, on, label, hot)
+        rect(bx, by + 4, 14, 14, mix(T.DarkContrast, T.TextColor, hot and 0.1 or 0), 2)
+        if on then rect(bx + 3, by + 7, 8, 8, T.TextColor, 1) end
+        text(label, bx + 20, ty(by, 22, 12), T.TextColor, 12)
+    end
+    box(x + 8, ry, lib.rand, "randomize", inside(x + 8, ry, 72, 22))
+    local sh = inside(x + 84, ry, 70, 22)
+    rect(x + 84, ry, 70, 22, mix(T.DarkContrast, T.TextColor, sh and 0.08 or 0), 2)
+    text("shuffle", x + 84 + (70 - tw("shuffle", 12)) / 2, ty(ry, 22, 12), T.TextColor, 12)
+    local iv = lib.rInt .. "s"
+    text("Every", x + 10, s2 + 2, T.TextColor, 12)
+    text(iv, x + 152 - tw(iv, 12), s2 + 2, T.TextColor, 12, 1, true)
+    local f = (lib.rInt - 1) / 59
+    rect(x + 8, s2 + 26, 146, 4, T.LightContrast, 2)
+    rect(x + 8, s2 + 26, 146 * f, 4, T.TextColor, 2)
+    circle(x + 8 + 146 * f, s2 + 28, 5, T.TextColor)
+    box(x + 8, cy, lib.corner, "goon corner mode", inside(x + 8, cy, 146, 22))
 end
 
 local function drawWindow(lib, dt)
@@ -1162,7 +1201,7 @@ local function drawWindow(lib, dt)
     rect(x, top, W, Hc, T.Background, 4)
     local bgi = lib.bg and lib.images[lib.bg]
     PanelA = 1
-    if bgi and bgi.bytes then
+    if bgi and bgi.bytes and not lib.corner then
         if not bgi.icon then
             bgi.icon = Drawing.new("Image")
             bgi.icon.Data = bgi.bytes
@@ -1439,7 +1478,70 @@ local function typing(it)
     if edge(0x0D) or edge(0x1B) then commit(it) end
 end
 
+local function imageSize(b)
+    if string.byte(b, 1) == 137 then
+        local a1, a2, a3, a4, b1, b2, b3, b4 = string.byte(b, 17, 24)
+        if a1 and b4 then
+            return a1 * 16777216 + a2 * 65536 + a3 * 256 + a4, b1 * 16777216 + b2 * 65536 + b3 * 256 + b4
+        end
+    end
+    return 4, 3
+end
+
+local function cornerRect(lib)
+    local im = lib.bg and lib.images[lib.bg]
+    if not (lib.corner and im and im.bytes) then return nil end
+    if not im.w then im.w, im.h = imageSize(im.bytes) end
+    local s = 260 / math.max(im.w, im.h, 1)
+    local w, h = math.max(20, im.w * s), math.max(20, im.h * s)
+    local vp = Cam.ViewportSize
+    if not lib.cx then
+        lib.cx = vp.X - w - 20
+        lib.cy = vp.Y - h - 20
+    end
+    lib.cx = clamp(lib.cx, 0, math.max(0, vp.X - w))
+    lib.cy = clamp(lib.cy, 0, math.max(0, vp.Y - h))
+    return im, lib.cx, lib.cy, w, h
+end
+
+local function updateCorner(lib)
+    local im, x, y, w, h = cornerRect(lib)
+    if not im then return end
+    if Input.click and not State.active and inside(x, y, w, h) then
+        local over = lib.anim > 0 and inside(lib.x, lib.y, lib.w, lib.h)
+        local p = State.panel
+        local q = State.picker
+        if p and inside(p.x, p.y, 162, p.h) then over = true end
+        if q and inside(q.x, q.y, 162, 169) then over = true end
+        if not over then
+            State.active = { kind = "corner", dx = Input.x - x, dy = Input.y - y }
+            Input.click = false
+        end
+    end
+end
+
+local function drawCorner(lib)
+    local im, x, y, w, h = cornerRect(lib)
+    if not im then return end
+    if not im.icon then
+        im.icon = Drawing.new("Image")
+        im.icon.Data = im.bytes
+        Icons[#Icons + 1] = im
+    end
+    Depth = Depth + 1
+    im.icon.Size = Vector2.new(w, h)
+    im.icon.Position = Vector2.new(x, y)
+    im.icon.Transparency = lib.cornerOp / 100
+    im.icon.Rounding = 8
+    im.icon.ZIndex = Depth
+    im.icon.Visible = true
+    im.iconSeen = FrameNo
+end
+
 local function blocking(lib)
+    if State.active and State.active.kind == "corner" then
+        return true
+    end
     if State.focus or State.listen then return true end
     if lib.anim > 0 and (State.active or lib.drag) then
         return true
@@ -1455,6 +1557,11 @@ local function blocking(lib)
     local p = State.picker
 
     if p and mx >= p.x - 6 and mx <= p.x + 168 and my >= p.y - 6 and my <= p.y + 175 then
+        return true
+    end
+
+    local im, ix, iy, iw, ih = cornerRect(lib)
+    if im and mx >= ix and mx <= ix + iw and my >= iy and my <= iy + ih then
         return true
     end
 
@@ -1488,7 +1595,15 @@ local function frame(dt)
     updateNotes(dt)
     updatePicker(dt)
     updatePanel(lib, dt)
+    updateCorner(lib)
     lib.anim = approach(lib.anim, lib.open and 1 or 0, dt / 0.4)
+    if lib.rand and #lib.images > 0 then
+        lib.rTimer = lib.rTimer + dt
+        if lib.rTimer >= lib.rInt then
+            lib.rTimer = 0
+            lib:randomize()
+        end
+    end
     if not lib.open then
         closePicker(false)
         if State.panel then State.panel.open = false end
@@ -1496,7 +1611,7 @@ local function frame(dt)
             commit(State.focus)
         end
         State.listen = nil
-        State.active = nil
+        if State.active and State.active.kind ~= "corner" then State.active = nil end
         lib.drag = nil
     end
     runKeybinds(lib)
@@ -1504,6 +1619,7 @@ local function frame(dt)
     if State.focus then
         typing(State.focus)
     end
+    drawCorner(lib)
     if lib.anim > 0 then drawWindow(lib, dt) end
     if Input.click and State.focus and not State.focusHit then commit(State.focus) end
     drawPicker(dt)
@@ -1646,6 +1762,12 @@ function Library.new(title, icon)
     lib.fade = 1
     lib.images = {}
     lib.bgOp = 35
+    lib.cornerOp = 100
+    lib.rInt = 10
+    lib.rTimer = 0
+    lib.rand = false
+    lib.corner = false
+    math.randomseed(math.floor(tick() * 1000) % 2147483647)
     Current = lib
     Conn = RunService.RenderStepped:Connect(function(dt)
         local ok, err = pcall(frame, dt)
@@ -1754,6 +1876,17 @@ function Library:addImage(source)
         if ok and bytes then im.bytes = bytes else im.failed = true end
     end
     return n
+end
+
+function Library:randomize()
+    local n = #self.images
+    if n == 0 then return end
+    local pick = math.random(1, n)
+    if n > 1 then
+        while pick == self.bg do pick = math.random(1, n) end
+    end
+    self.bg = pick
+    self.bgOff = false
 end
 
 function Library:setBackground(which)
